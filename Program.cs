@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 
 float[,] Mdata =
     {
@@ -17,6 +18,7 @@ Matrix<float> M = new Matrix<float>(
 // z0 =  -1q/2 - w1/2  - 3/2 z1 - 5/2 z2
 // wo = [q,z0,], - > [q,0,0,0,0]
 //z0,w1
+{
 var w0 = new EqVariable();
 w0.row_index = 0;
 w0.initial_index = 0;
@@ -81,13 +83,86 @@ nonBasics.Add(z1);
 nonBasics.Add(z2);
 nonBasics.Add(z3);
 nonBasics.Add(z4);
+
+
 M.SetBasic(basics);
 M.SetNonBasic(nonBasics);
+}
 M.LemkesAlgorithm();
-// M.Swap(z4, w3);
-M.Print();
+                  
+// M.Print();
 
+float [,] M2data = 
+
+    {
+    {-2.0f,0.0f,0.0f,1.0f,1.0f},
+    {-1.0f, 0.0f,0.0f,1.0f,1.0f},
+    {3.0f,-1.0f,-1.0f,0.0f,1.0f},
+    // {-2.0f,1.0f,2.0f,0.0f,0.0f,1.0f}
+    };
 // w1 -> z0 ()
+Matrix<float> m2 = new Matrix<float>(M2data);
+{
+
+var w0 = new EqVariable();
+w0.row_index = 0;
+w0.initial_index = 0;
+w0.is_basic = true;
+var w1 = new EqVariable();
+w1.row_index = 1;
+w1.initial_index = 1;
+w1.is_basic = true;
+
+var w2 = new EqVariable();
+w2.row_index = 2;
+w2.initial_index = 2;
+w2.is_basic = true;
+
+
+var z0 = new EqVariable();
+z0.row_index = 0;
+z0.variable_type = "z";
+z0.col_index = 1;
+z0.initial_index = 0;
+z0.is_basic = false;
+
+var z1 = new EqVariable();
+z1.row_index = 0;
+z1.variable_type = "z";
+z1.col_index = 2;
+z1.initial_index = 1;
+z1.is_basic = false;
+
+var z2 = new EqVariable();
+z2.row_index = 0;
+z2.variable_type = "z";
+z2.col_index = 3;
+z2.initial_index = 2;
+z2.is_basic = false;
+
+var z3 = new EqVariable();
+z3.row_index = 0;
+z3.variable_type = "z";
+z3.col_index = 4;
+z3.initial_index = 3;
+z3.is_basic = false;
+
+List<EqVariable> basics = new List<EqVariable>();
+basics.Add(w0);
+basics.Add(w1);
+basics.Add(w2);
+               
+List<EqVariable> nonBasics = new List<EqVariable>();
+nonBasics.Add(z0);
+nonBasics.Add(z1);
+nonBasics.Add(z2);
+nonBasics.Add(z3);
+// nonBasics.Add(z4);
+m2.SetBasic(basics);
+m2.SetNonBasic(nonBasics);
+}
+m2.LemkesAlgorithm();
+m2.Print();
 //zo =
 public class Matrix<T> where T : struct, IComparable,
 IComparable<T>,
@@ -181,6 +256,84 @@ IFormattable {
     nonBasics[nonBasicIndex].variable_type = basicCopy.variable_type;
     nonBasics[nonBasicIndex].initial_index = basicCopy.initial_index;
   }
+  EqVariable GetBasicFromMinRationRule(EqVariable _enterVariable){
+
+    dynamic minRatio = Double.PositiveInfinity;
+    int rowIndexToChange = -1;
+
+    for (int _i = 0; _i < data.GetLength(0); _i++) {
+      dynamic vjCoeff = data[_i, _enterVariable.col_index];
+      if (vjCoeff < 0) {
+        dynamic q = data[_i, 0];
+        dynamic qRatio = -q / vjCoeff;
+        if (qRatio < minRatio) {
+          minRatio = qRatio;
+          rowIndexToChange = _i;
+        }
+      }
+    }
+    var basicToChange = basics.FirstOrDefault(x => x.row_index == rowIndexToChange);
+        return basicToChange;
+  }
+
+public EqVariable copyEq(EqVariable w){
+        EqVariable wCopy = new EqVariable();
+    wCopy.initial_index = w.initial_index;
+    wCopy.col_index = w.col_index;
+    wCopy.row_index = w.row_index;
+    wCopy.is_basic = w.is_basic;
+    wCopy.variable_type = w.variable_type;
+        return wCopy;
+}
+  public void CheckSolution(Tuple<EqVariable, EqVariable> pair, EqVariable zn, int iter = 0){
+        //
+        // Console.WriteLine(zn.initial_index);
+        if(iter ==2){
+            // Console.Write("SAM");
+            // Console.WriteLine(pair.Item2);
+            return;
+        }
+    if(pair.Item2.initial_index == zn.initial_index && pair.Item2.variable_type == zn.variable_type){
+            // found Solution
+            Console.WriteLine("FOUND Solution"); 
+    Swap(pair.Item1, pair.Item2);    
+    } else {
+            // else CreatePair(Pivot(prevPair.basic), GetBasicFromMinRationRule(Pivot(prevPair.basic)));
+            var pivottedBasic = Pivot(pair.Item2);
+            var secondEq = GetBasicFromMinRationRule(pivottedBasic);
+            if(secondEq==null) {
+                Console.Write(pivottedBasic.variable_type + pivottedBasic.initial_index+"BOB");
+            }
+            // Console.Write(pivottedBasic.)
+            var newPair = new Tuple<EqVariable, EqVariable>(
+                    pivottedBasic,
+                    GetBasicFromMinRationRule(pivottedBasic)
+
+            );
+            Swap(pair.Item1, pair.Item2);    
+            CheckSolution(newPair, zn,iter+1);
+    }
+  }
+  public void CheckSolutionv2(EqVariable prevBasicToChange, EqVariable zn){
+
+        var enterVariable = Pivot(prevBasicToChange);
+        var basicToChange = GetBasicFromMinRationRule(enterVariable);
+        var basicToChangeCopy = copyEq(basicToChange);
+        Swap(enterVariable, basicToChange);
+        // if(basicToChange.initial_index == zn.initial_index && basicToChange.variable_type == zn.variable_type){
+        //     Console.Write("SOLUTION FOUND");
+        // }  else {
+            CheckSolutionv2(basicToChangeCopy, zn); 
+        // }
+    // var newEnterVariable = Pivot(basicToChangeCopy);
+    // var newBasicToChange = GetBasicFromMinRationRule(newEnterVariable);
+        
+        // var _enterVariable = Pivot(wCopy);
+        // var basicToChange = GetBasicFromMinRationRule(_enterVariable);
+        // // var newEnterVariable = Pivot(basicToChange);
+        // var basicToChangeCopy = copyEq(basicToChange);
+        // Swap(_enterVariable, basicToChange);
+  }
   public void LemkesAlgorithm() {
     // todo check trivial solution
     // swap last z with w with max negative value
@@ -204,6 +357,13 @@ IFormattable {
       }
     }
 
+        var znCopy = new EqVariable();
+        znCopy.col_index = zn!.col_index;
+        znCopy.row_index = zn!.row_index;
+        znCopy.initial_index = zn!.initial_index;
+        znCopy.variable_type = zn!.variable_type;
+        znCopy.is_basic = zn.is_basic;
+
     var wCopy = new EqVariable();
     wCopy.initial_index = w.initial_index;
     wCopy.col_index = w.col_index;
@@ -212,38 +372,39 @@ IFormattable {
     wCopy.variable_type = w.variable_type;
 
     Swap(zn, w);
-    // find new z,v -> swap while variable zn non in non basic
-    //w type ="w" -> z"index"
-    //find min qi/vij
-    // variable wi leaves dictionary-> zi enters dictionary
-   /**/
-    var enterVariable = new EqVariable();
-    //Pivot(wCopy);  basic variable get return non basic
-    enterVariable.variable_type = wCopy.variable_type == "w"
-      ? "z"
-      : "w";
-    enterVariable.initial_index = wCopy.initial_index;
-    // z3 in nonBasic
-    var _enterVariable = nonBasics.FirstOrDefault(x => x.variable_type == enterVariable.variable_type && x.initial_index == enterVariable.initial_index);
+        // find new z,v -> swap while variable zn non in non basic
+        //w type ="w" -> z"index"
+        //find min qi/vij
+        // variable wi leaves dictionary-> zi enters dictionary
+        /**/
 
-    dynamic minRatio = Double.PositiveInfinity;
-    int rowIndexToChange = -1;
+        // CheckSolutionv2(wCopy, zn);
+        // CheckSolutin()
+        EqVariable __enterVariable = Pivot(wCopy);
+        EqVariable __basicToChange = GetBasicFromMinRationRule(__enterVariable);
+        EqVariable __basicToChangeCopy = copyEq(__basicToChange);
 
-    for (int _i = 0; _i < data.GetLength(0); _i++) {
-      dynamic vjCoeff = data[_i, _enterVariable.col_index];
-      // Console.WriteLine(vjCoeff);
-      if (vjCoeff < 0) {
-        dynamic q = data[_i, 0];
-        dynamic qRatio = -q / vjCoeff;
-        if (qRatio < minRatio) {
-          minRatio = qRatio;
-          rowIndexToChange = _i;
+        Swap(__enterVariable, __basicToChange);
+        // var _enterVariable = Pivot(wCopy);
+        // var basicToChange = GetBasicFromMinRationRule(_enterVariable);
+        // // var newEnterVariable = Pivot(basicToChange);
+        // var basicToChangeCopy = copyEq(basicToChange);
+        // Swap(_enterVariable, basicToChange);
+        // int _i = 0;
+        bool isSolutionFound = false;
+        while(!isSolutionFound){
+
+     __enterVariable = Pivot(__basicToChangeCopy);
+    __basicToChange = GetBasicFromMinRationRule(__enterVariable);
+    __basicToChangeCopy = copyEq(__basicToChange);
+
+        if(__basicToChange.variable_type == znCopy.variable_type && __basicToChange.initial_index == znCopy.initial_index) {
+            Console.Write("SOLUTION FOUND");
+                Console.WriteLine();
+                isSolutionFound = true;
         }
-      }
-    }
-    var basicToChange = basics.FirstOrDefault(x => x.row_index == rowIndexToChange);
-    // get
-    //   Swap(newZ, basicToChange) ->
+    Swap(__enterVariable, __basicToChange);
+        }
   }
   public void Print() {
     var rowCount = data.GetLength(0);
